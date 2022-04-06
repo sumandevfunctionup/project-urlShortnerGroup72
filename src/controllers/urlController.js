@@ -23,8 +23,8 @@ if (! /^((ftp|http|https):\/\/)?(www.)?(?!.*(ftp|http|https|www.))[a-zA-Z0-9_-]+
 const urlCode= shortId.generate(longUrl)
 console.log(urlCode)
 //checking urlCode is uniqe or not
-const existCode=await urlModel.findOne({longUrl})
-if(existCode) return res.status(400).send({status:false,msg:"url code is already exist"})
+const existCode=await urlModel.findOne({longUrl:longUrl})
+if(existCode) return res.status(400).send({msg:"url code is already exist","please use this short url":existCode.shortUrl})
 
 //create a database 
 const data= {
