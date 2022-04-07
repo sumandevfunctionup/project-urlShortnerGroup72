@@ -1,5 +1,29 @@
 const urlModel= require("../models/urlModel")
 const shortId= require("shortid")
+const redis= require("redis")
+const {promisify }= require("util")
+
+
+//Connect to redis
+const redisClient = redis.createClient(
+    13953,
+    "redis-13953.c212.ap-south-1-1.ec2.cloud.redislabs.com",
+    { no_ready_check: true }
+);
+redisClient.auth("PVnXD258CEJmOiydei42mjXOCMuzKEQF", function (err) {
+    if (err) throw err;
+});
+
+redisClient.on("connect", async function () {
+    console.log("Connected to Redis..");
+});
+
+//Connection setup for redis------------------
+
+const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
+
+
 
 const isValid = function (value) {
     if (typeof value === 'undefined' || value === null) return false
@@ -66,22 +90,47 @@ module.exports.urlShort = urlShort
 //     }
   
 //   }
-const getUrl = async function(req,res){
-    try{
-        const urlCode=req.params.urlCode
-        if(!isValid(urlCode))return res.status(400).send({status:false,msg:"please enter urlCode."})
+// const getUrl = async function(req,res){
+//     try{
+//         const urlCode=req.params.urlCode
+//         if(!isValid(urlCode))return res.status(400).send({status:false,msg:"please enter urlCode."})
         
-        const url=await urlModel.findOne({urlCode:urlCode})
-       console.log(url)
-       if(!url)return res.status(400).send({status:false,msg:"invalid urlCode,please enter a valid one."})
-        if(url){
-            const newVar=url.longUrl
-            return res.status(302).redirect(newVar)
-        }
+//         const url=await urlModel.findOne({urlCode:urlCode})
+//        console.log(url)
+//        if(!url)return res.status(400).send({status:false,msg:"invalid urlCode,please enter a valid one."})
+//         if(url){
+//             const newVar=url.longUrl
+//             return res.status(302).redirect(newVar)
+//         }
        
           
-       }catch(err){
-           return res.status(500).send({status:true,message:err.message})
-       }
+//        }catch(err){
+//            return res.status(500).send({status:true,message:err.message})
+//        }
+// }
+
+const getUrl = async function (req, res) {
+    try {
+        let urlCode = req.params.urlCode
+        let urlFromCache = await GET_ASYNC(`${urlCode}`)
+
+        if (urlFromCache) {
+            return res.status(302).redirect(JSON.parse(urlFromCache))
+        }
+        else {
+            let urlFromMongoDB = await urlModel.findOne({ urlCode: urlCode });
+            if (urlFromMongoDB) {
+                await SET_ASYNC(`${urlCode}`, JSON.stringify(urlFromMongoDB.longUrl))
+                return res.status(302).redirect(urlFromMongoDB.longUrl);
+            }
+            else {
+                return res.status(404).send({ status: false, msg: "No url found with this urlCode" })
+            }
+        }
+    }
+    catch (err) {
+        console.log(error)
+        return res.status(500).status(500).send({ status: true, message: err.message })
+    }
 }
   module.exports.getUrl=getUrl
